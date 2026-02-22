@@ -95,7 +95,7 @@ export class InfraStack extends cdk.Stack {
     // DynamoDB Table
     const gamesTable = new dynamodb.Table(this, 'GamesTable', {
       partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.NUMBER },
+      sortKey: { name: 'gameId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY, // For dev purposes, destroy table on stack deletion
     });

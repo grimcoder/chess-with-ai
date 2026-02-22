@@ -145,6 +145,7 @@ init();
 
 let selectedSquare = null;
 let moveHistory = [];
+let currentGameId = null; // Track current game ID to avoid duplicates
 
 const PIECES = {
     'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
@@ -426,6 +427,7 @@ resetBtn.addEventListener('click', () => {
     moveListElement.innerHTML = '';
     selectedSquare = null;
     isGameSaved = false;
+    currentGameId = null; // Reset game ID
     statusElement.innerText = "White's turn";
     renderBoard();
 });
@@ -441,7 +443,8 @@ async function saveGame(result) {
         pgn: game.pgn(),
         fen: game.fen(),
         result: result,
-        opponent: 'AI'
+        opponent: 'AI',
+        gameId: currentGameId // Send current ID if exists
     };
 
     try {
@@ -454,7 +457,12 @@ async function saveGame(result) {
             body: JSON.stringify(gameData)
         });
 
-        if (!response.ok) {
+        if (response.ok) {
+            const data = await response.json();
+            if (data.gameId) {
+                currentGameId = data.gameId; // Store returned ID
+            }
+        } else {
             console.error("Failed to save game");
         }
     } catch (e) {
@@ -516,14 +524,14 @@ function renderGamesList(games) {
         btn.onclick = (e) => {
             e.stopPropagation();
             // Use the closure variable 'g' directly
-            loadGamesPgn(g.pgn);
+            loadGamesPgn(g.pgn, g.gameId);
         };
         
         gamesList.appendChild(li);
     });
 }
 
-function loadGamesPgn(pgn) {
+function loadGamesPgn(pgn, gameId) {
     game.load_pgn(pgn);
     renderBoard();
     updateStatus();
@@ -535,6 +543,7 @@ function loadGamesPgn(pgn) {
     
     modal.style.display = "none";
     isGameSaved = true; // Loaded games are already saved.
+    currentGameId = gameId || null; // Set current game ID
 }
 
 
