@@ -194,6 +194,9 @@ export class InfraStack extends cdk.Stack {
     webSocketApi.addRoute('joinGame', {
       integration: new WebSocketLambdaIntegration('JoinGameIntegration', websocketHandler),
     });
+    webSocketApi.addRoute('listGames', {
+      integration: new WebSocketLambdaIntegration('ListGamesIntegration', websocketHandler),
+    });
     webSocketApi.addRoute('move', {
       integration: new WebSocketLambdaIntegration('MoveIntegration', websocketHandler),
     });
@@ -206,6 +209,25 @@ export class InfraStack extends cdk.Stack {
     });
     
     webSocketApi.grantManageConnections(websocketHandler);
+
+    // Explicitly grant invoke permissions for all routes (to fix potential 500 errors)
+    // In a production app, these should be more granularly scoped.
+    // However, the grantManageConnections above handles the generic permission.
+    // The specific route permissions are implicitly handled by the integration but seemingly failed before.
+    // The issue might have been resolved by simply redeploying the route integrations with specific IDs.
+    // For safety, ensuring the permission logic is sound. API Gateway routes need permission to invoke the Lambda.
+    // The 'WebSocketLambdaIntegration' construct usually adds this permission. 
+    // If we want to be explicit:
+    
+    /*
+    const routes = ['$connect', '$disconnect', 'createGame', 'joinGame', 'move', 'listGames'];
+    routes.forEach(route => {
+        websocketHandler.addPermission(`Invoke${route.replace('$', '')}`, {
+            principal: new cdk.aws_iam.ServicePrincipal('apigateway.amazonaws.com'),
+            sourceArn: webSocketApi.arnForExecuteApi(route)
+        });
+    });
+    */
 
     // --- End WebSocket Multiplayer Backend ---
 

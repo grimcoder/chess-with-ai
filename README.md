@@ -4,6 +4,7 @@ A fully serverless Chess application where you can play against an AI opponent (
 
 ## Features
 
+*   **Real-Time Multiplayer**: Challenge friends online with live move updates via WebSockets.
 *   **AI Opponent**: Play against a configurable AI difficulty (Minimax with Alpha-Beta Pruning).
 *   **Authentication**: Secure login via Google (Amazon Cognito).
 *   **Cloud Persistence**: Game history is automatically saved to DynamoDB upon Checkmate or Draw.
@@ -14,9 +15,14 @@ A fully serverless Chess application where you can play against an AI opponent (
 
 *   **Frontend**: Static website (HTML/CSS/JS) hosted on **Amazon S3** distributed via **Amazon CloudFront**.
 *   **Auth**: **Amazon Cognito User Pool** with Google Identity Provider.
-*   **API**: **Amazon API Gateway** with Cognito Authorizer.
-*   **Compute**: **AWS Lambda** (Node.js) for backend logic.
-*   **Database**: **Amazon DynamoDB** for storing game records (Partition Key: `userId`, Sort Key: `gameId`).
+*   **API**: 
+    *   **REST API**: Amazon API Gateway for game history.
+    *   **WebSocket API**: Amazon API Gateway for real-time player moves.
+*   **Compute**: **AWS Lambda** (Node.js) for backend logic (AI, History, WebSocket Handler).
+*   **Database**: **Amazon DynamoDB** (3 Tables):
+    *   `GamesTable`: Historical game records (Partition Key: `userId`, Sort Key: `gameId`).
+    *   `ActiveGamesTable`: Current live game state (Partition Key: `gameId`).
+    *   `ConnectionsTable`: Active WebSocket connections (Partition Key: `connectionId`).
 *   **Infrastructure**: Defined entirely in **AWS CDK** (TypeScript).
 
 ## Prerequisites
@@ -25,6 +31,17 @@ A fully serverless Chess application where you can play against an AI opponent (
 2.  **Node.js**: v18 or later.
 3.  **AWS CDK**: Install globally (`npm install -g aws-cdk`).
 4.  **Google Cloud Console**: A project with OAuth 2.0 credentials.
+
+## Cloud Persistence
+
+Games played against the AI are automatically saved to your history when they end (Checkmate or Draw), provided you are logged in.
+
+## Real-Time Multiplayer
+
+1.  Click **"Play Online"**.
+2.  **Create Game**: Generates a Game ID to share. Wait for an opponent.
+3.  **Join Game**: Enter the opponent's Game ID to join.
+4.  Moves are synchronized instantly via WebSockets.
 
 ## Step-by-Step Deployment Guide
 

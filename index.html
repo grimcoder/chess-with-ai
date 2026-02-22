@@ -63,9 +63,14 @@
             <h2>Multiplayer</h2>
             <button onclick="createOnlineGame()">Create Game</button>
             <br/><br/>
-            <button onclick="joinOnlineGame()">Join Game</button>
-            <br/><br/>
-            <p>Or share your game ID to play.</p>
+            <h3>Available Games</h3>
+            <button onclick="listOnlineGames()">Refresh List</button>
+            <ul id="online-games-list" style="list-style: none; padding: 0;"></ul>
+            <div id="join-manual-container" style="display:none; margin-top: 10px;">
+                <p>Or manually join by ID:</p>
+                <button onclick="joinOnlineGame()">Join by ID</button>
+            </div>
+            <p style="font-size: small; cursor: pointer; color: blue;" onclick="toggleManualJoin()">Toggle Manual Join</p>
         </div>
     </div>
 

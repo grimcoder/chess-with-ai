@@ -283,6 +283,8 @@ function handleServerMessage(msg) {
         addMoveToHistory(game.history({ verbose: true }).pop()); // Add last move
         renderBoard();
         updateStatus();
+    } else if (msg.action === 'gamesList') {
+        renderOnlineGames(msg.games);
     } else if (msg.error) {
         alert("Error: " + msg.error);
     }
@@ -298,8 +300,8 @@ async function createOnlineGame() {
     }
 }
 
-async function joinOnlineGame() {
-    const gameId = prompt("Enter Game ID:");
+async function joinOnlineGame(id) {
+    const gameId = id || prompt("Enter Game ID:");
     if (!gameId) return;
     
     try {
@@ -309,6 +311,40 @@ async function joinOnlineGame() {
         console.error("Connection failed", e);
         alert("Failed to connect to server.");
     }
+}
+
+async function listOnlineGames() {
+    try {
+        await connectWebSocket();
+        ws.send(JSON.stringify({ action: 'listGames' }));
+    } catch (e) {
+        console.error("Connection failed", e);
+    }
+}
+
+function renderOnlineGames(games) {
+    const list = document.getElementById('online-games-list');
+    list.innerHTML = '';
+    
+    if (!games || games.length === 0) {
+        list.innerHTML = '<li>No games waiting. Create one!</li>';
+        return;
+    }
+
+    games.forEach(g => {
+        const li = document.createElement('li');
+        li.style.margin = "5px 0";
+        li.innerHTML = `
+            <span>Game ${g.gameId} (waiting)</span>
+            <button onclick="joinOnlineGame('${g.gameId}')">Join</button>
+        `;
+        list.appendChild(li);
+    });
+}
+
+function toggleManualJoin() {
+    const container = document.getElementById('join-manual-container');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
 }
 
 function onSquareClick(pos) {
@@ -672,11 +708,12 @@ function loadGamesPgn(pgn, gameId) {
 historyBtn.addEventListener('click', fetchGames);
 
 if (onlineBtn) {
-    onlineBtn.addEventListener('click', () => {
+    onlineBtn.addEventListener('click', async () => {
         console.log('Online button clicked');
         const menu = document.getElementById('multiplayer-menu');
         if (menu) {
             menu.style.display = 'block';
+            await listOnlineGames();
         } else {
             console.error('Multiplayer menu not found');
         }
