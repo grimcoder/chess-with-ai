@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chess</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Chess vs AI</h1>
+        
+        <div id="auth-container">
+            <button id="login-btn">Login with Google</button>
+            <button id="logout-btn" style="display:none;">Logout</button>
+        </div>
+
+        <div id="game-wrapper" style="display:none;">
+            <div id="status">White's turn</div>
+            <div class="game-container">
+                <div id="board" class="board"></div>
+                <div class="info-panel">
+                    <div class="controls">
+                        <button id="reset-btn">New Game</button>
+                        <div class="difficulty">
+                            <label for="difficulty-select">Difficulty:</label>
+                            <select id="difficulty-select">
+                                <option value="1">Easy (Random-ish)</option>
+                                <option value="2" selected>Medium (Thinking)</option>
+                                <option value="3">Hard (Deeper Search)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="move-history">
+                        <h3>Move History</h3>
+                        <ul id="move-list"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
