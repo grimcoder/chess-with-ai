@@ -8,11 +8,16 @@
 </head>
 <body>
     <div class="container">
-        <h1>Chess vs AI</h1>
+        <header class="app-header">
+            <h1>Chess vs AI</h1>
+            <div id="user-info" style="display:none;">
+                <span id="user-email"></span>
+                <button id="logout-btn">Logout</button>
+            </div>
+        </header>
         
         <div id="auth-container">
             <button id="login-btn">Login with Google</button>
-            <button id="logout-btn" style="display:none;">Logout</button>
         </div>
 
         <div id="game-wrapper" style="display:none;">

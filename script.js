@@ -10,6 +10,8 @@ const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const gameWrapper = document.getElementById('game-wrapper');
 const authContainer = document.getElementById('auth-container');
+const userInfo = document.getElementById('user-info');
+const userEmailSpan = document.getElementById('user-email');
 
 // --- Configuration ---
 let COGNITO_DOMAIN;
@@ -17,6 +19,19 @@ let CLIENT_ID;
 const REDIRECT_URI = window.location.href.split('?')[0].split('#')[0]; // Current page
 
 // --- Auth Logic ---
+
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return null;
+    }
+}
 
 async function init() {
     try {
@@ -37,10 +52,15 @@ function checkAuth() {
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     
-    if (params.has('id_token') || params.has('access_token')) {
-        const token = params.get('id_token') || params.get('access_token');
+    // Prefer ID token for user details
+    if (params.has('id_token')) {
+        const token = params.get('id_token');
         localStorage.setItem('chess_auth_token', token);
-        // Clear hash
+        history.replaceState(null, null, ' ');
+    } else if (params.has('access_token')) {
+        // Fallback if no ID token
+        const token = params.get('access_token');
+        localStorage.setItem('chess_auth_token', token);
         history.replaceState(null, null, ' ');
     }
 
@@ -49,17 +69,28 @@ function checkAuth() {
     
     if (token) {
         // Simple check: token exists. In production, verify signature and expiry.
-        showGame();
+        showGame(token);
     } else {
         showLogin();
     }
 }
 
-function showGame() {
-    authContainer.style.display = 'block'; // Keep container for Logout button
-    loginBtn.style.display = 'none';
-    logoutBtn.style.display = 'inline-block';
+function showGame(token) {
+    authContainer.style.display = 'none';
+    loginBtn.style.display = 'none'; // Ensure login button is hidden
+
+    userInfo.style.display = 'flex';
+    if (token) {
+        const payload = parseJwt(token);
+        if (payload && (payload.email || payload['cognito:username'])) {
+            userEmailSpan.textContent = payload.email || payload['cognito:username'];
+        } else {
+            userEmailSpan.textContent = 'Player';
+        }
+    }
+
     gameWrapper.style.display = 'block';
+    
     // Trigger a resize or render to ensure board is drawn correctly
     // Wait for Chess instance and board to be ready
     if(window.game && window.boardElement) {
@@ -67,10 +98,11 @@ function showGame() {
     }
 }
 
+
 function showLogin() {
     authContainer.style.display = 'block';
     loginBtn.style.display = 'inline-block';
-    logoutBtn.style.display = 'none';
+    userInfo.style.display = 'none';
     gameWrapper.style.display = 'none';
 }
 
