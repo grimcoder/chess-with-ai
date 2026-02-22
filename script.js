@@ -5,6 +5,7 @@ const moveListElement = document.getElementById('move-list');
 const resetBtn = document.getElementById('reset-btn');
 const undoBtn = document.getElementById('undo-btn');
 const historyBtn = document.getElementById('history-btn');
+const onlineBtn = document.getElementById('online-btn');
 const modal = document.getElementById('history-modal');
 const closeBtn = document.querySelector('.close-btn');
 const gamesList = document.getElementById('games-list');
@@ -24,6 +25,7 @@ let isGameSaved = false;
 let COGNITO_DOMAIN;
 let CLIENT_ID;
 let API_URL;
+let WS_URL;
 const REDIRECT_URI = window.location.href.split('?')[0].split('#')[0]; // Current page
 
 // --- Auth Logic ---
@@ -48,6 +50,7 @@ async function init() {
         COGNITO_DOMAIN = config.cognitoDomain; 
         CLIENT_ID = config.clientId;
         API_URL = config.apiUrl;
+        WS_URL = config.wsUrl;
         
         checkAuth();
     } catch (e) {
@@ -146,37 +149,70 @@ init();
 let selectedSquare = null;
 let moveHistory = [];
 let currentGameId = null; // Track current game ID to avoid duplicates
+let isOnlineGame = false;
+let myColor = null; // 'w' or 'b'
+let ws = null; // WebSocket connection
 
 const PIECES = {
     'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
     'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
 };
 
+// WebSocket Logic
+function connectWebSocket() {
+    return new Promise((resolve, reject) => {
+        if (!WS_URL) {
+            console.error("WS_URL not set");
+            reject("WS_URL not set. Check config.");
+            return;
+        }
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            resolve(ws);
+            return;
+        }
+
+        if (ws && ws.readyState === WebSocket.CONNECTING) {
+            // Already connecting, wait for it
+            const checkInterval = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    clearInterval(checkInterval);
+                    resolve(ws);
+                } else if (ws.readyState === WebSocket.CLOSED) {
+                    clearInterval(checkInterval);
+                    reject("Connection failed");
+                }
+            }, 100);
+            return;
+        }
+
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+            console.log("Connected to WebSocket");
+            statusElement.innerText = "Connected to Server. Ready to play online.";
+            resolve(ws);
+        };
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            handleServerMessage(msg);
+        };
+
+        ws.onclose = () => {
+            console.log("Disconnected from WebSocket");
+            statusElement.innerText = "Disconnected from Server.";
+        };
+        
+        ws.onerror = (e) => {
+            console.error("WebSocket Error", e);
+            reject(e);
+        };
+    });
+}
+
 // Evaluation Tables (simplified)
 const weights = { p: 10, n: 30, b: 30, r: 50, q: 90, k: 900 };
-
-const pst_white = {
-    p: [
-        [0,  0,  0,  0,  0,  0,  0,  0],
-        [50, 50, 50, 50, 50, 50, 50, 50],
-        [10, 10, 20, 30, 30, 20, 10, 10],
-        [5,  5, 10, 25, 25, 10,  5,  5],
-        [0,  0,  0, 20, 20,  0,  0,  0],
-        [5, -5,-10,  0,  0,-10, -5,  5],
-        [5, 10, 10,-20,-20, 10, 10,  5],
-        [0,  0,  0,  0,  0,  0,  0,  0]
-    ],
-    n: [
-        [-50,-40,-30,-30,-30,-30,-40,-50],
-        [-40,-20,  0,  0,  0,  0,-20,-40],
-        [-30,  0, 10, 15, 15, 10,  0,-30],
-        [-30,  5, 15, 20, 20, 15,  5,-30],
-        [-30,  0, 15, 20, 20, 15,  0,-30],
-        [-30,  5, 10, 15, 15, 10,  5,-30],
-        [-40,-20,  0,  5,  5,  0,-20,-40],
-        [-50,-40,-30,-30,-30,-30,-40,-50]
-    ]
-};
 
 function renderBoard() {
     boardElement.innerHTML = '';
@@ -203,10 +239,18 @@ function renderBoard() {
                 squareDiv.classList.add('selected');
             }
 
-            // Highlight valid moves
-            if (validMoves.some(m => m.to === pos)) {
-                squareDiv.classList.add('highlight');
+            if (isOnlineGame && game.turn() === myColor) {
+               // Highlight valid moves only if it's my turn
+               if (validMoves.some(m => m.to === pos)) {
+                   squareDiv.classList.add('highlight');
+               }
+            } else if (!isOnlineGame) {
+                // Highlight valid moves
+                if (validMoves.some(m => m.to === pos)) {
+                    squareDiv.classList.add('highlight');
+                }
             }
+
 
             squareDiv.addEventListener('click', () => onSquareClick(pos));
             boardElement.appendChild(squareDiv);
@@ -215,8 +259,68 @@ function renderBoard() {
     updateStatus();
 }
 
+function handleServerMessage(msg) {
+    if (msg.action === 'gameCreated') {
+        currentGameId = msg.gameId;
+        alert(`Game Created! ID: ${currentGameId}\nShare this ID with your friend.`);
+        statusElement.innerText = `Waiting for opponent... (Game ID: ${currentGameId})`;
+        myColor = 'w'; // Creator is white
+        isOnlineGame = true;
+        game.reset();
+        renderBoard();
+        document.getElementById('multiplayer-menu').style.display = 'none';
+    } else if (msg.action === 'gameStarted') {
+        currentGameId = msg.gameId;
+        statusElement.innerText = `Game Started! You are ${msg.color === 'w' ? 'White' : 'Black'}. White to move.`;
+        myColor = msg.color;
+        isOnlineGame = true;
+        game.reset(); // or msg.fen if resuming
+        renderBoard();
+        document.getElementById('multiplayer-menu').style.display = 'none';
+    } else if (msg.action === 'opponentMove') {
+        game.move(msg.move);
+        // Add move to history without recreating board?
+        addMoveToHistory(game.history({ verbose: true }).pop()); // Add last move
+        renderBoard();
+        updateStatus();
+    } else if (msg.error) {
+        alert("Error: " + msg.error);
+    }
+}
+
+async function createOnlineGame() {
+    try {
+        await connectWebSocket();
+        ws.send(JSON.stringify({ action: 'createGame' }));
+    } catch (e) {
+        console.error("Connection failed", e);
+        alert("Failed to connect to server. Ensure configuration is loaded.");
+    }
+}
+
+async function joinOnlineGame() {
+    const gameId = prompt("Enter Game ID:");
+    if (!gameId) return;
+    
+    try {
+        await connectWebSocket();
+        ws.send(JSON.stringify({ action: 'joinGame', gameId }));
+    } catch (e) {
+        console.error("Connection failed", e);
+        alert("Failed to connect to server.");
+    }
+}
+
 function onSquareClick(pos) {
     if (game.game_over()) return;
+
+    // Online Checks
+    if (isOnlineGame) {
+        if (game.turn() !== myColor) return; // Not my turn
+        // Check if piece belongs to me (prevent selecting opponent pieces)
+        const piece = game.get(pos);
+        if (piece && piece.color !== myColor && !selectedSquare) return;
+    }
 
     if (selectedSquare === pos) {
         selectedSquare = null;
@@ -236,23 +340,41 @@ function onSquareClick(pos) {
             addMoveToHistory(move);
             renderBoard();
             
-            if (!game.game_over()) {
-                statusElement.innerText = "AI is thinking...";
-                setTimeout(makeAIMove, 250);
+            if (isOnlineGame) {
+                // Send move to server
+                ws.send(JSON.stringify({ 
+                    action: 'move', 
+                    gameId: currentGameId, 
+                    move: move.san, // Store SAN or object
+                    fen: game.fen() 
+                }));
+                 statusElement.innerText = "Opponent's turn...";
+            } else {
+                if (!game.game_over()) {
+                    statusElement.innerText = "AI is thinking...";
+                    setTimeout(makeAIMove, 250);
+                }
             }
         } else {
             // Check if clicking another of player's own pieces
             const piece = game.get(pos);
-            if (piece && piece.color === 'w') {
-                selectedSquare = pos;
-                renderBoard();
+            // Allow selection if it's my piece
+            if (piece) {
+                const isMyPiece = isOnlineGame ? piece.color === myColor : piece.color === 'w'; // In local game user is white
+                if (isMyPiece) {
+                    selectedSquare = pos;
+                    renderBoard();
+                }
             }
         }
     } else {
         const piece = game.get(pos);
-        if (piece && piece.color === 'w') {
-            selectedSquare = pos;
-            renderBoard();
+        if (piece) {
+             const isMyPiece = isOnlineGame ? piece.color === myColor : piece.color === 'w';
+             if (isMyPiece) {
+                selectedSquare = pos;
+                renderBoard();
+             }
         }
     }
 }
@@ -548,6 +670,20 @@ function loadGamesPgn(pgn, gameId) {
 
 
 historyBtn.addEventListener('click', fetchGames);
+
+if (onlineBtn) {
+    onlineBtn.addEventListener('click', () => {
+        console.log('Online button clicked');
+        const menu = document.getElementById('multiplayer-menu');
+        if (menu) {
+            menu.style.display = 'block';
+        } else {
+            console.error('Multiplayer menu not found');
+        }
+    });
+} else {
+    console.error('Online button not found');
+}
 
 closeBtn.addEventListener('click', () => {
     modal.style.display = "none";

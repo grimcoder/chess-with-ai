@@ -9,6 +9,8 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import { WebSocketApi, WebSocketStage } from 'aws-cdk-lib/aws-apigatewayv2';
+import { WebSocketLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as path from 'path';
 
 export class InfraStack extends cdk.Stack {
@@ -145,11 +147,74 @@ export class InfraStack extends cdk.Stack {
 
     // --- End Game History Backend ---
 
+    // --- Start WebSocket Multiplayer Backend ---
+
+    const activeGamesTable = new dynamodb.Table(this, 'ActiveGamesTable', {
+      partitionKey: { name: 'gameId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'ttl',
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const connectionsTable = new dynamodb.Table(this, 'ConnectionsTable', {
+      partitionKey: { name: 'connectionId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'ttl',
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const websocketHandler = new lambda.Function(this, 'WebSocketHandler', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/websocket-handler')),
+      environment: {
+        ACTIVE_GAMES_TABLE: activeGamesTable.tableName,
+        CONNECTIONS_TABLE: connectionsTable.tableName,
+      },
+      timeout: cdk.Duration.seconds(30),
+    });
+
+    activeGamesTable.grantReadWriteData(websocketHandler);
+    connectionsTable.grantReadWriteData(websocketHandler);
+
+    // WebSocket API
+    const webSocketApi = new WebSocketApi(this, 'ChessWebSocketApi', {
+      apiName: 'ChessWebSocketApi',
+    });
+
+    webSocketApi.addRoute('$connect', {
+      integration: new WebSocketLambdaIntegration('ConnectIntegration', websocketHandler),
+    });
+    webSocketApi.addRoute('$disconnect', {
+      integration: new WebSocketLambdaIntegration('DisconnectIntegration', websocketHandler),
+    });
+    webSocketApi.addRoute('createGame', {
+      integration: new WebSocketLambdaIntegration('CreateGameIntegration', websocketHandler),
+    });
+    webSocketApi.addRoute('joinGame', {
+      integration: new WebSocketLambdaIntegration('JoinGameIntegration', websocketHandler),
+    });
+    webSocketApi.addRoute('move', {
+      integration: new WebSocketLambdaIntegration('MoveIntegration', websocketHandler),
+    });
+    
+    // Grant Lambda permission to Manage Connections (PostToConnection)
+    const webSocketStage = new WebSocketStage(this, 'WebSocketStage', {
+      webSocketApi,
+      stageName: 'prod',
+      autoDeploy: true,
+    });
+    
+    webSocketApi.grantManageConnections(websocketHandler);
+
+    // --- End WebSocket Multiplayer Backend ---
+
     // Create a config object with the values we need
     const config = {
       cognitoDomain: userPoolDomain.baseUrl(), // automatically includes https://
       clientId: userPoolClient.userPoolClientId,
       apiUrl: api.url,
+      wsUrl: webSocketStage.url, // e.g. wss://xxx.execute-api.eu-central-1.amazonaws.com/prod
     };
 
     // Deploy the website content to the S3 bucket
