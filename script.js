@@ -3,6 +3,7 @@ const boardElement = document.getElementById('board');
 const statusElement = document.getElementById('status');
 const moveListElement = document.getElementById('move-list');
 const resetBtn = document.getElementById('reset-btn');
+const undoBtn = document.getElementById('undo-btn');
 const difficultySelect = document.getElementById('difficulty-select');
 
 // Auth elements
@@ -265,11 +266,43 @@ function updateStatus() {
 
 function addMoveToHistory(move) {
     const li = document.createElement('li');
-    li.innerText = `${move.color === 'w' ? 'W' : 'B'}: ${move.san}`;
+    li.textContent = `${move.color === 'w' ? 'White' : 'Black'}: ${move.san}`;
     moveListElement.prepend(li);
 }
 
+function undoMove() {
+     // Prevent undo if AI is thinking (though unlikely to click fast enough)
+    if (statusElement.innerText === "AI is thinking...") return;
+
+    // Undo 2-ply (White move + Black response) to get back to White's turn
+    if (game.history().length >= 2) {
+        // Undo AI
+        game.undo();
+        if (moveListElement.firstElementChild) moveListElement.removeChild(moveListElement.firstElementChild);
+        
+        // Undo Player
+        game.undo();
+        if (moveListElement.firstElementChild) moveListElement.removeChild(moveListElement.firstElementChild);
+        
+        selectedSquare = null;
+        renderBoard();
+        statusElement.innerText = "White's turn";
+    }
+}
+
 // AI Logic
+
+
+resetBtn.addEventListener('click', () => {
+    game.reset();
+    moveListElement.innerHTML = '';
+    selectedSquare = null;
+    renderBoard();
+});
+
+undoBtn.addEventListener('click', undoMove);
+
+renderBoard();
 function evaluateBoard(game) {
     let totalEvaluation = 0;
     const board = game.board();

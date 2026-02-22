@@ -121,6 +121,16 @@ h1 {
     gap: 10px;
 }
 
+.game-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.game-actions button {
+    flex: 1;
+}
+
 button {
     padding: 10px 20px;
     background-color: #333;
