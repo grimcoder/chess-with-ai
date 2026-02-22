@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.995.0",
+    "@aws-sdk/lib-dynamodb": "^3.995.0",
     "aws-cdk-lib": "^2.239.0",
     "constructs": "^10.5.1"
   }

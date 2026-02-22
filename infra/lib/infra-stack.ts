@@ -6,6 +6,9 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as path from 'path';
 
 export class InfraStack extends cdk.Stack {
@@ -87,10 +90,66 @@ export class InfraStack extends cdk.Stack {
 
     // --- End Cognito Setup ---
 
+    // --- Start Game History Backend ---
+
+    // DynamoDB Table
+    const gamesTable = new dynamodb.Table(this, 'GamesTable', {
+      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.NUMBER },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY, // For dev purposes, destroy table on stack deletion
+    });
+
+    // Lambda Function
+    const gameHandler = new lambda.Function(this, 'GameHandler', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/game-handler')),
+      environment: {
+        TABLE_NAME: gamesTable.tableName,
+      },
+      timeout: cdk.Duration.seconds(30),
+    });
+
+    // Grant Lambda permission to access DynamoDB
+    gamesTable.grantReadWriteData(gameHandler);
+
+    // API Gateway Authorizer
+    const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'GameAuthorizer', {
+      cognitoUserPools: [userPool],
+    });
+
+    // API Gateway
+    const api = new apigateway.LambdaRestApi(this, 'GameApi', {
+      handler: gameHandler,
+      proxy: false, // We define resources explicitly
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowMethods: apigateway.Cors.ALL_METHODS,
+      },
+    });
+
+    const gamesResource = api.root.addResource('games');
+    
+    // GET /games - List games
+    gamesResource.addMethod('GET', new apigateway.LambdaIntegration(gameHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // POST /games - Save game
+    gamesResource.addMethod('POST', new apigateway.LambdaIntegration(gameHandler), {
+      authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // --- End Game History Backend ---
+
     // Create a config object with the values we need
     const config = {
       cognitoDomain: userPoolDomain.baseUrl(), // automatically includes https://
       clientId: userPoolClient.userPoolClientId,
+      apiUrl: api.url,
     };
 
     // Deploy the website content to the S3 bucket

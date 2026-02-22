@@ -4,6 +4,10 @@ const statusElement = document.getElementById('status');
 const moveListElement = document.getElementById('move-list');
 const resetBtn = document.getElementById('reset-btn');
 const undoBtn = document.getElementById('undo-btn');
+const historyBtn = document.getElementById('history-btn');
+const modal = document.getElementById('history-modal');
+const closeBtn = document.querySelector('.close-btn');
+const gamesList = document.getElementById('games-list');
 const difficultySelect = document.getElementById('difficulty-select');
 
 // Auth elements
@@ -14,9 +18,12 @@ const authContainer = document.getElementById('auth-container');
 const userInfo = document.getElementById('user-info');
 const userEmailSpan = document.getElementById('user-email');
 
+let isGameSaved = false;
+
 // --- Configuration ---
 let COGNITO_DOMAIN;
 let CLIENT_ID;
+let API_URL;
 const REDIRECT_URI = window.location.href.split('?')[0].split('#')[0]; // Current page
 
 // --- Auth Logic ---
@@ -38,8 +45,9 @@ async function init() {
     try {
         const response = await fetch('config.json');
         const config = await response.json();
-        COGNITO_DOMAIN = config.cognitoDomain; // Remove trailing slash if present? .baseUrl() does not have trailing slash usually.
+        COGNITO_DOMAIN = config.cognitoDomain; 
         CLIENT_ID = config.clientId;
+        API_URL = config.apiUrl;
         
         checkAuth();
     } catch (e) {
@@ -253,9 +261,18 @@ function updateStatus() {
     const turn = game.turn() === 'w' ? 'White' : 'Black';
 
     if (game.in_checkmate()) {
-        status = `Game Over: ${turn === 'White' ? 'Black' : 'White'} wins by Checkmate!`;
+        const winner = turn === 'White' ? 'Black' : 'White';
+        status = `Game Over: ${winner} wins by Checkmate!`;
+        if (!isGameSaved) {
+            saveGame(winner);
+            isGameSaved = true;
+        }
     } else if (game.in_draw()) {
         status = 'Game Over: Draw!';
+        if (!isGameSaved) {
+            saveGame('Draw');
+            isGameSaved = true;
+        }
     } else if (game.in_check()) {
         status = `${turn} is in Check!`;
     } else {
@@ -263,6 +280,7 @@ function updateStatus() {
     }
     statusElement.innerText = status;
 }
+
 
 function addMoveToHistory(move) {
     const li = document.createElement('li');
@@ -286,6 +304,7 @@ function undoMove() {
         
         selectedSquare = null;
         renderBoard();
+        isGameSaved = false;
         statusElement.innerText = "White's turn";
     }
 }
@@ -406,7 +425,129 @@ resetBtn.addEventListener('click', () => {
     game.reset();
     moveListElement.innerHTML = '';
     selectedSquare = null;
+    isGameSaved = false;
+    statusElement.innerText = "White's turn";
     renderBoard();
+});
+
+// --- Game History API ---
+
+async function saveGame(result) {
+    if (!API_URL) return;
+    const token = localStorage.getItem('chess_auth_token');
+    if (!token) return; // Only save for logged-in users
+
+    const gameData = {
+        pgn: game.pgn(),
+        fen: game.fen(),
+        result: result,
+        opponent: 'AI'
+    };
+
+    try {
+        const response = await fetch(`${API_URL}games`, {
+            method: 'POST',
+            headers: {
+                'Authorization': token,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(gameData)
+        });
+
+        if (!response.ok) {
+            console.error("Failed to save game");
+        }
+    } catch (e) {
+        console.error("Error saving game:", e);
+    }
+}
+
+async function fetchGames() {
+    if (!API_URL) return;
+    const token = localStorage.getItem('chess_auth_token');
+    if (!token) {
+        alert("Please login to see your game history.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}games`, {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        });
+
+        if (response.ok) {
+            const games = await response.json();
+            renderGamesList(games);
+            modal.style.display = "block";
+        } else {
+            console.error("Failed to fetch games");
+            alert("Failed to load game history.");
+        }
+    } catch (e) {
+        console.error("Error fetching games:", e);
+        alert("Error loading history.");
+    }
+}
+
+function renderGamesList(games) {
+    gamesList.innerHTML = '';
+    if (games.length === 0) {
+        gamesList.innerHTML = '<li>No games found.</li>';
+        return;
+    }
+
+    // Sort by timestamp descending
+    games.sort((a, b) => b.timestamp - a.timestamp);
+
+    games.forEach(g => {
+        const date = new Date(g.timestamp).toLocaleString();
+        const li = document.createElement('li');
+        // Retrieve result safely
+        const resultText = g.result || 'Unknown';
+        li.innerHTML = `
+            <span>${date} vs ${g.opponent} (${resultText})</span>
+            <button class="load-game-btn">Load</button>
+        `;
+        
+        const btn = li.querySelector('.load-game-btn');
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            // Use the closure variable 'g' directly
+            loadGamesPgn(g.pgn);
+        };
+        
+        gamesList.appendChild(li);
+    });
+}
+
+function loadGamesPgn(pgn) {
+    game.load_pgn(pgn);
+    renderBoard();
+    updateStatus();
+    
+    // Reconstruct move history list
+    moveListElement.innerHTML = '';
+    const history = game.history({ verbose: true });
+    history.forEach(move => addMoveToHistory(move));
+    
+    modal.style.display = "none";
+    isGameSaved = true; // Loaded games are already saved.
+}
+
+
+historyBtn.addEventListener('click', fetchGames);
+
+closeBtn.addEventListener('click', () => {
+    modal.style.display = "none";
+});
+
+window.addEventListener('click', (event) => {
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
 });
 
 renderBoard();
