@@ -5,7 +5,9 @@ A fully serverless Chess application where you can play against an AI opponent (
 ## Features
 
 *   **Real-Time Multiplayer**: Challenge friends online with live move updates via WebSockets.
+*   **Cross-Platform**: Play seamlessly between Web and Mobile (React Native) clients.
 *   **AI Opponent**: Play against a configurable AI difficulty (Minimax with Alpha-Beta Pruning).
+*   **Lobby System**: Browse and join available games from a dynamic list.
 *   **Authentication**: Secure login via Google (Amazon Cognito).
 *   **Cloud Persistence**: Game history is automatically saved to DynamoDB upon Checkmate or Draw.
 *   **Game Replay**: Review past games move-by-move.
@@ -13,7 +15,9 @@ A fully serverless Chess application where you can play against an AI opponent (
 
 ## Architecture
 
-*   **Frontend**: Static website (HTML/CSS/JS) hosted on **Amazon S3** distributed via **Amazon CloudFront**.
+*   **Frontend**: 
+    *   **Web**: Static website (HTML/CSS/JS) hosted on **Amazon S3** distributed via **Amazon CloudFront**.
+    *   **Mobile**: React Native (Expo) app for iOS and Android.
 *   **Auth**: **Amazon Cognito User Pool** with Google Identity Provider.
 *   **API**: 
     *   **REST API**: Amazon API Gateway for game history.
@@ -96,6 +100,35 @@ After deployment, the CDK output will provide two important URLs:
     *   Open the `WebsiteURL` in your browser.
     *   Click "Login with Google".
     *   Play a game!
+
+## Mobile Client (React Native)
+
+The project includes a React Native mobile client located in the `mobile` directory. It connects to the same serverless backend, allowing cross-platform multiplayer games (Web vs Mobile).
+
+### Prerequisites
+*   **Node.js**: LTS version (v18+).
+*   **Expo Go App**: Install "Expo Go" on your iOS or Android device from the App Store or Google Play Store.
+
+### Setup & Run
+1.  Navigate to the mobile directory:
+    ```bash
+    cd mobile
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Start the development server:
+    ```bash
+    npx expo start
+    ```
+4.  **Connect Device**:
+    *   Scan the QR code displayed in the terminal using the Expo Go app (Android) or Camera app (iOS).
+    *   Ensure your phone and computer are on the same Wi-Fi network.
+
+### Troubleshooting
+*   If connection fails, try running `npx expo start --tunnel`.
+*   Ensure the backend is deployed and the `mobile/App.js` configuration matches your API Gateway WebSocket URL (currently hardcoded as `CONFIG.wsUrl`, or automatically updated if implemented).
 
 ## Local Development
 
