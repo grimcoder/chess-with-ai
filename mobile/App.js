@@ -211,6 +211,19 @@ export default function App() {
             }
         }
 
+        // Labels
+        const rankLabel = (c === 0) ? (
+            <Text style={[styles.rankLabel, { color: isDark ? '#F0D9B5' : '#B58863' }]}>
+                {rank}
+            </Text>
+        ) : null;
+
+        const fileLabel = (r === 7) ? (
+            <Text style={[styles.fileLabel, { color: isDark ? '#F0D9B5' : '#B58863' }]}>
+                {file}
+            </Text>
+        ) : null;
+
         cols.push(
           <TouchableOpacity
             key={squareName}
@@ -221,6 +234,8 @@ export default function App() {
             ]}
             onPress={() => handleSquarePress(squareName)}
           >
+            {rankLabel}
+            {fileLabel}
             <Text style={[styles.piece, { color: pieceColor }]}>
               {pieceSymbol}
             </Text>
@@ -399,6 +414,20 @@ const styles = StyleSheet.create({
   },
   piece: {
     fontSize: squareSize * 0.7,
+    fontWeight: 'bold',
+  },
+  rankLabel: {
+    position: 'absolute',
+    left: 2,
+    top: 2,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  fileLabel: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    fontSize: 10,
     fontWeight: 'bold',
   },
 });

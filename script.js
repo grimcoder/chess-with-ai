@@ -228,6 +228,23 @@ function renderBoard() {
             squareDiv.className = `square ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
             squareDiv.dataset.pos = pos;
 
+            // Add Labels
+            // Rank labels (numbers) on the left-most column (c==0)
+            if (c === 0) {
+                const rankLabel = document.createElement('span');
+                rankLabel.className = 'rank-label';
+                rankLabel.innerText = 8 - r;
+                squareDiv.appendChild(rankLabel);
+            }
+
+            // File labels (letters) on the bottom row (r==7)
+            if (r === 7) {
+                const fileLabel = document.createElement('span');
+                fileLabel.className = 'file-label';
+                fileLabel.innerText = String.fromCharCode(97 + c);
+                squareDiv.appendChild(fileLabel);
+            }
+
             if (square) {
                 const pieceSpan = document.createElement('span');
                 pieceSpan.className = 'piece';
